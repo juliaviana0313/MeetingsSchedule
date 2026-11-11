@@ -1,0 +1,24 @@
+# Local credentials and environment settings
+.env*
+!.env.example
+.dev.vars*
+*.pem
+*.key
+.aws/
+.agents/
+.codex/
+
+# Dependencies, builds, and local runtime data
+node_modules/
+dist/
+.next/
+.vinext/
+out/
+.wrangler/
+.sites-runtime/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
