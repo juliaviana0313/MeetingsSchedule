@@ -26,6 +26,7 @@ const mf = new Miniflare({
     ` },
     { type: 'ESModule', path: 'public-booking.mjs', contents: readFileSync(new URL('../lib/public-booking.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'shared-management.mjs', contents: readFileSync(new URL('../lib/shared-management.mjs', import.meta.url), 'utf8') },
+    { type: 'ESModule', path: 'event-settings.mjs', contents: readFileSync(new URL('../lib/event-settings.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'meeting-formats.mjs', contents: readFileSync(new URL('../lib/meeting-formats.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'meeting-recipient.mjs', contents: readFileSync(new URL('../lib/meeting-recipient.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'secure-session.mjs', contents: readFileSync(new URL('../lib/secure-session.mjs', import.meta.url), 'utf8') },

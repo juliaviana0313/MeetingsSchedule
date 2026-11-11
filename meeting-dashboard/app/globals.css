@@ -1923,3 +1923,27 @@ h1 { font-size: clamp(1.8rem, 2.5vw, 2.3333rem); font-weight: 650; letter-spacin
   .reservation-footer .workspace-actions { width: 100%; }
   .reservation-footer .button { flex: 1 1 100%; white-space: normal; }
 }
+
+/* Cal.com scheduling controls, grouped for editing without leaving the dashboard. */
+.event-settings { display: grid; gap: 24px; border-top: 1px solid var(--border); padding-top: 28px; margin-top: 6px; min-width: 0; }
+.event-section-heading h4 { font-size: 1.1667rem; margin: 0 0 8px; }
+.event-section-heading p, .event-settings small { color: var(--muted); line-height: 1.6; font-size: .8333rem; }
+.event-limit { border-top: 1px solid var(--border); padding-top: 24px; display: grid; gap: 20px; }
+.workspace-editor .setting-toggle { display: flex; flex-direction: row; justify-content: space-between; align-items: flex-start; gap: 20px; cursor: pointer; }
+.setting-toggle strong { display: block; font-size: 1rem; font-weight: 550; }
+.setting-toggle small { display: block; margin-top: 5px; }
+.workspace-editor .setting-toggle input { appearance: none; flex: 0 0 44px; width: 44px; height: 26px; min-height: 0; padding: 0; margin: 2px 0 0; border-radius: 20px; background: var(--inset); border: 1px solid var(--control-border); cursor: pointer; position: relative; }
+.setting-toggle input::after { content: ''; display: block; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s; }
+.workspace-editor .setting-toggle input:checked { background: var(--accent-surface); border-color: var(--accent); }
+.setting-toggle input:checked::after { background: var(--text); transform: translateX(18px); }
+.setting-control { display: grid; align-content: start; gap: 8px; color: var(--muted); font-size: .8889rem; min-width: 0; }
+.notice-input { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.limit-periods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.event-limit-fields { display: grid; gap: 20px; }
+.workspace-editor .setting-checkbox { display: flex; flex-direction: row; align-items: flex-start; gap: 12px; }
+.workspace-editor .setting-checkbox input { width: 20px; height: 20px; min-height: 0; flex: 0 0 20px; margin-top: 3px; accent-color: var(--accent); }
+.event-advanced { border-top: 1px solid var(--border); padding-top: 20px; }
+.event-advanced summary { cursor: pointer; font-size: .9444rem; }
+.event-advanced .event-limit-fields { margin-top: 22px; }
+@media (max-width: 1000px) { .limit-periods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 500px) { .limit-periods { grid-template-columns: minmax(0, 1fr); } }

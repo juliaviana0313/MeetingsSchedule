@@ -1,8 +1,10 @@
+import { eventSettings, validateEventSettings } from './event-settings.mjs';
 import { providerChoices, eventLocation, recordedFormat } from './meeting-formats.mjs';
 // Narrow, server-authenticated operations for the shared scheduling workspace.
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 export function managementRoute(route) {
   return ['GET /api/public/formats', 'GET /api/public/bookings', 'GET /api/public/schedules', 'POST /api/public/schedules', 'POST /api/public/event-types'].includes(route)
+    || /^GET \/api\/public\/event-types\/\d+$/.test(route)
     || /^PATCH \/api\/public\/event-types\/\d+$/.test(route)
     || /^POST \/api\/public\/bookings\/[A-Za-z0-9_-]{1,100}\/(cancel|reschedule)$/.test(route);
 }
@@ -20,6 +22,10 @@ export async function manage(request, env, fetcher, session, c) {
     format: recordedFormat(b), participants: (b.attendees || []).map(a => text(a.name, 100)).filter(Boolean), cancellationReason: text(b.cancellationReason, 500), rescheduledTo: !!b.rescheduledToUid });
   await account(env, fetcher);
   if (request.method === 'GET') {
+    if (/^\/event-types\/\d+$/.test(path)) {
+      const event = await selectedType(env, fetcher, Number(path.split('/').at(-1)));
+      return json({ event: { ...publicType(event), slug: text(event.slug, 100), settings: eventSettings(event) } });
+    }
     if (path === '/formats') return json({ formats: providerChoices(await cal(env, fetcher, '/conferencing', '2024-06-11')) });
     if (path === '/schedules') return json({ schedules: (await schedules()).map(scheduleView) });
     const status = url.searchParams.get('status') || 'upcoming';
@@ -62,15 +68,18 @@ export async function manage(request, env, fetcher, session, c) {
     if (!title || !Number.isSafeInteger(lengthInMinutes) || lengthInMinutes < 5 || lengthInMinutes > 480) fail('Enter an event title and a duration between 5 and 480 minutes.');
     if (!(await schedules()).some(s => s.id === scheduleId)) fail('Choose an availability schedule belonging to this workspace.');
     payload = { title, description, lengthInMinutes, scheduleId };
+    try { Object.assign(payload, validateEventSettings(body.settings)); } catch (error) { fail(error.message); }
+    if (request.method === 'POST' || body.slug !== undefined) {
+      const slug = typeof body.slug === 'string' ? body.slug.trim() : '';
+      if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(slug) || slug.length > 100) fail('Use a URL slug with lowercase letters, numbers, hyphens, or underscores.');
+      payload.slug = slug;
+    }
     if (request.method === 'POST' || body.formatId) {
       const choices = providerChoices(await cal(env, fetcher, '/conferencing', '2024-06-11'));
       try { payload.locations = [eventLocation(body.formatId, body.formatDetail, choices)]; } catch (error) { fail(error.message); }
     }
     if (request.method === 'POST') {
       if (env.CAL_EVENT_TYPE_IDS) fail('Event creation is disabled while an event ID allowlist is configured. Contact the dashboard owner.');
-      const slug = typeof body.slug === 'string' ? body.slug.trim() : '';
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 80) fail('Use a URL slug with lowercase letters, numbers, and single hyphens.');
-      payload.slug = slug;
       payload.hidden = false;
       payload.bookingRequiresAuthentication = false;
       payload.requiresBookerEmailVerification = false;

@@ -248,3 +248,35 @@ test('event format settings require a connected provider or valid meeting detail
   assert.equal((await write(f, cookie, 'event-types', { ...eventPayload, formatId: 'link', formatDetail: 'https://meet.example.com/room' })).status, 200);
   assert.deepEqual(JSON.parse(f.calls.at(-1).options.body).locations, [{ type: 'link', link: 'https://meet.example.com/room', public: false }]);
 });
+
+test('event details load current scheduling values and do not expose private metadata', async () => {
+  const f = fixture(); Object.assign(f.events[0], { slug: 'intro', minimumBookingNotice: 0, beforeEventBuffer: 15, slotInterval: null, bookingLimitsCount: { day: 4, privateToken: 'PRIVATE' }, metadata: { secret: 'PRIVATE' } });
+  const { cookie } = await f.init();
+  const data = await (await f.call('/api/public/event-types/42', undefined, cookie)).json();
+  assert.equal(data.event.settings.minimumBookingNotice, 0); assert.equal(data.event.settings.beforeEventBuffer, 15); assert.equal(data.event.settings.slotInterval, null);
+  assert.deepEqual(data.event.settings.bookingLimitsCount, { day: 4 }); assert.ok(!JSON.stringify(data).includes('PRIVATE'));
+  f.events[0].minimumBookingNotice = 60;
+  assert.equal((await (await f.call('/api/public/event-types/42', undefined, cookie)).json()).event.settings.minimumBookingNotice, 60);
+  assert.equal((await f.call('/api/public/event-types/999', undefined, cookie)).status, 400);
+  f.events[0].hidden = true; assert.equal((await f.call('/api/public/event-types/42', undefined, cookie)).status, 400);
+  assert.equal((await f.call('/api/public/event-types/42')).status, 401);
+});
+test('event settings persist explicit zero, buffers, intervals, limits and reset values', async () => {
+  const f = fixture(), { cookie } = await f.init();
+  const settings = { minimumBookingNotice: 0, beforeEventBuffer: 15, afterEventBuffer: 10, slotInterval: 15, offsetStart: 5, onlyShowFirstAvailableSlot: false, bookingLimitsCount: { day: 4, week: 12 }, bookingLimitsDuration: { day: 120 }, bookingWindow: { type: 'calendarDays', value: 30, rolling: false }, bookerActiveBookingsLimit: { maximumActiveBookings: 2, offerReschedule: false } };
+  const r = await write(f, cookie, 'event-types/42', { ...eventPayload, settings }, crypto.randomUUID(), 'PATCH'); assert.equal(r.status, 200);
+  const sent = JSON.parse(f.calls.at(-1).options.body); for (const [k,v] of Object.entries(settings)) assert.deepEqual(sent[k], v, k);
+  const reset = { slotInterval: null, bookingLimitsCount: { disabled: true }, bookingLimitsDuration: { disabled: true }, bookingWindow: { disabled: true }, bookerActiveBookingsLimit: { disabled: true } };
+  assert.equal((await write(f, cookie, 'event-types/42', { ...eventPayload, settings: reset }, crypto.randomUUID(), 'PATCH')).status, 200);
+  const cleared = JSON.parse(f.calls.at(-1).options.body); for (const [k,v] of Object.entries(reset)) assert.deepEqual(cleared[k], v);
+  assert.equal((await write(f, cookie, 'event-types/42', { ...eventPayload, settings: {} }, crypto.randomUUID(), 'PATCH')).status, 200);
+  const unchanged = JSON.parse(f.calls.at(-1).options.body); assert.equal(Object.hasOwn(unchanged, 'minimumBookingNotice'), false); assert.equal(Object.hasOwn(unchanged, 'bookingWindow'), false);
+});
+test('invalid scheduling settings are rejected before a Cal.com write', async () => {
+  const invalid = [{ minimumBookingNotice: -1 }, { minimumBookingNotice: '0' }, { beforeEventBuffer: 0.5 }, { slotInterval: 0 }, { onlyShowFirstAvailableSlot: 'false' }, { bookingLimitsCount: {} }, { bookingLimitsCount: { day: 0 } }, { bookingLimitsDuration: { day: 20 } }, { bookingWindow: { type: 'calendarDays', value: 62, rolling: true } }, { bookingWindow: { type: 'range', value: ['2027-02-30', '2027-03-02'] } }, { bookingWindow: { type: 'range', value: ['2027-03-02', '2027-03-01'] } }, { bookerActiveBookingsLimit: { maximumActiveBookings: 0 } }, { allowConflicts: true }, { constructor: {} }];
+  for (const settings of invalid) { const f=fixture(), {cookie}=await f.init(); assert.equal((await write(f,cookie,'event-types/42',{...eventPayload,settings},crypto.randomUUID(),'PATCH')).status,400,JSON.stringify(settings)); assert.equal(f.calls.some(c=>c.options.method==='PATCH'),false); }
+  const f=fixture(),{cookie}=await f.init();
+  const settings = { bookingWindow: { type:'range',value:['2027-01-05','2027-01-10'] } };
+  assert.equal((await write(f,cookie,'event-types/42',{...eventPayload,settings},crypto.randomUUID(),'PATCH')).status,200);
+  assert.deepEqual(JSON.parse(f.calls.at(-1).options.body).bookingWindow,settings.bookingWindow);
+});

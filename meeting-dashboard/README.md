@@ -25,7 +25,7 @@ Available slots come from the organizer's schedule and connected calendars. The 
 All visitors share this workspace without signing up. Changes use the backend credentials for `hello@truemarch.fun`. Visitors can create and edit public meeting types and view, cancel, or reschedule their reservations. The shared list displays meeting titles, participant names, times, meeting format, status, reference, and cancellation reason. Older bookings without a recognizable format display “Not recorded”. It does not return attendee email addresses, private notes, meeting links, account profiles, or the API key. Hidden and unsupported event types and their reservations remain outside the public workspace.
 
 1. **Availability → New schedule:** name the schedule, select a time zone and weekdays, and enter start/end hours. Optional date overrides replace the weekly hours on those dates. Save the schedule. Creating a schedule does not replace the account's default or change other events.
-2. **Events → New event:** enter a title, unique URL slug, duration, description, and availability schedule. Choose a required **Event meeting format**. Cal Video, a custom HTTPS meeting link, an in-person address, and a phone call are available; connected Google Meet, Zoom, or Microsoft Teams providers can also be selected. Enter the link, address, or international phone number when prompted. Guests are enabled. Use **Edit event** to change its title, description, duration, assigned schedule, or format. **Keep current formats** preserves existing locations; selecting a different format replaces them. To replace offered hours, create a new schedule and assign it here.
+2. **Events → New event:** enter a title, unique URL slug, duration, description, and availability schedule. Choose a required **Event meeting format**. Cal Video, a custom HTTPS meeting link, an in-person address, and a phone call are available; connected Google Meet, Zoom, or Microsoft Teams providers can also be selected. Enter the link, address, or international phone number when prompted. Guests are enabled. Use **Edit event** to change its title, description, duration, assigned schedule, format, URL slug, or scheduling limits. **Keep current formats** preserves existing locations; selecting a different format replaces them. To replace offered hours, create a new schedule and assign it here.
 3. **Book a meeting:** choose the event, meeting format, and a time, then enter your own name/email and confirm the invitation. You can also select **Book meeting** on an event card.
 4. **Bookings:** switch between Upcoming, Pending, Past, and Cancelled. Every meeting shows the selected display time zone and its UTC offset at the meeting time. Use **Load more meetings** for additional pages.
 5. **Cancel meeting:** enter a reason, confirm participants agreed, and choose **Confirm cancellation**. The reservation remains visible under **Cancelled**. Cal.com handles cancellation notifications.
@@ -33,6 +33,27 @@ All visitors share this workspace without signing up. Changes use the backend cr
 7. **Refresh:** fetch the current data from Cal.com, including cancellations made outside the dashboard. Refreshing does not create, cancel, or resend meetings. Lists refresh automatically after successful changes; external changes appear when the list is reopened or refreshed.
 
 No proposal/voting flow or automatic access to participants' private calendars is included. Pending organizer approval must still be handled through Cal.com. Payment, recurring, seated, hidden, and extra-required-field event types are not managed here. This dashboard implements the documented scheduling operations above, not every Cal.com account setting.
+
+## Configure event details
+
+Open **Events → Edit event**. The editor loads the event's current Cal.com values, including changes made outside this dashboard. Update the basics, availability schedule, format, and **Limits & buffers**, then select **Save event**.
+
+| Control | Effect |
+| --- | --- |
+| Minimum notice | How far in advance a reservation must be made. Choose minutes, hours, or days; **0** allows short-notice bookings, subject to available hours and calendar conflicts. |
+| Before / after event | Minutes reserved as a buffer around the meeting. **0** means no buffer. |
+| Time-slot intervals | Use event duration automatically, or enter a custom interval between offered start times. |
+| Limit booking frequency | Maximum bookings per day, week, month, or year. Leave unused periods blank. |
+| Limit total booking duration | Maximum meeting minutes per period, in multiples of 15 minutes. |
+| Limit future bookings | Calendar days, business days, or a specific date range. Optional rolling availability supports up to 61 available days. The dashboard searches at most one year ahead. |
+| Limit upcoming bookings per person | Maximum active reservations per booker's email. The optional Cal.com rescheduling offer applies to its booking page; dashboard visitors can use **Bookings → Reschedule**. |
+| More start-time options | Shift start times by an offset or offer only the first available slot each day. |
+
+Switch a limit off to remove it. Choosing **Use event length (default)** resets a custom slot interval. Saving an existing event sends only changed scheduling settings, so unrelated policies are preserved. Changes affect new availability; existing reservations are not moved or cancelled. Return to **Book a meeting** and select **Find available times** to see the recalculated slots.
+
+For example, with 120 minutes of minimum notice, a search at 3:59 AM first permits 5:59 AM; 30-minute slots start at 6:00 AM. Set minimum notice to 0 if short-notice reservations are intended. Cal.com can still enforce schedule-level minimum notice, calendar conflicts, buffers, and booking limits.
+
+New events show a 2-hour notice default explicitly. Other limits start off. Payments, seats, recurrence, custom booking questions, confirmation policies, and account integrations remain outside this editor; existing unsupported event types stay excluded from the public workspace.
 
 ## Server environment setup
 
@@ -121,7 +142,8 @@ For an existing local database that already has migration 0000, apply only 0001.
 - `GET /api/public/receipt`: retrieves one submitted request's result, scoped to the same anonymous browser cookie and request ID.
 - `GET /api/public/formats`: returns format labels and connection availability without provider credentials.
 - `GET /api/public/schedules` and `POST /api/public/schedules`: list availability schedules and create a separate schedule with weekly hours and date overrides.
-- `POST /api/public/event-types` and `PATCH /api/public/event-types/:id`: create/edit public event types with a validated schedule owned by the service account and an explicitly selected, available meeting format.
+- `GET /api/public/event-types/:id`: loads current basics and allowlisted scheduling settings for an eligible event.
+- `POST /api/public/event-types` and `PATCH /api/public/event-types/:id`: create/edit public event types with a validated schedule owned by the service account and an explicitly selected, available meeting format. Scheduling settings are validated and mapped to Cal.com API v2 fields; arbitrary settings are rejected.
 - `GET /api/public/bookings`: list sanitized reservations for eligible public event types, with status filters and cursor pagination.
 - `POST /api/public/bookings/:uid/cancel` and `/reschedule`: verify event eligibility, require participant agreement, and submit the supported change. No bypass flags or arbitrary Cal.com paths are forwarded.
 - Old `/api/auth/*` and `/api/cal/*` endpoints return 404, including for browsers with old authenticated sessions.
@@ -168,6 +190,6 @@ node tests/management-browser.mjs
 
 If Playwright is installed outside the project, set `PLAYWRIGHT_MODULE` to its absolute module entry path. Browser checks mock the public API and create no real bookings. Backend checks use real SQLite migration SQL and mocked Cal.com responses. A real account connection and invitation delivery require separate live verification.
 
-Main files: `app/page.tsx` (workspace and booking form), `app/workspace-management.tsx` (events, schedules, and bookings), `app/theme-toggle.tsx`, `app/globals.css`, `lib/public-booking.mjs` and `lib/shared-management.mjs` (restricted server API), `lib/meeting-formats.mjs` (format validation and provider availability), `lib/secure-session.mjs`, `worker/index.ts`, and `db/schema.ts`/`drizzle/`.
+Main files: `app/page.tsx` (workspace and booking form), `app/workspace-management.tsx` (events, schedules, and bookings), `app/event-settings-fields.tsx` (scheduling controls), `lib/event-settings.mjs` (settings validation), `app/theme-toggle.tsx`, `app/globals.css`, `lib/public-booking.mjs` and `lib/shared-management.mjs` (restricted server API), `lib/meeting-formats.mjs` (format validation and provider availability), `lib/secure-session.mjs`, `worker/index.ts`, and `db/schema.ts`/`drizzle/`.
 
 The former per-user authentication/gateway modules and their unit tests are historical, unmounted code. The historical [Cal.com analysis](docs/cal-com-analysis.html) describes an earlier account-based dashboard and is not this shared workspace's user guide.

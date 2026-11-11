@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { eventSettings } from '../lib/event-settings.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 try {
@@ -16,7 +17,7 @@ try {
   else if(path==='schedules'&&method==='GET') data={schedules};
   else if(path==='schedules') {const b=request.postDataJSON();const s={id:8,name:b.name,timeZone:b.timeZone,isDefault:false,availability:[{days:b.days,startTime:b.startTime,endTime:b.endTime}],overrides:b.overrides};schedules.push(s);data={schedule:s};}
   else if(path==='event-types'&&method==='POST'){if(uncertain){status=409;data={uncertain:true,error:'Unknown result'};}else{const b=request.postDataJSON();const e={...b,id:43,formats:[{id:b.formatId,label:'Cal Video',input:null}]};events.push(e);data={event:e};}}
-  else if(path==='event-types/43'){Object.assign(events[1],request.postDataJSON());data={event:events[1]};}
+  else if(path==='event-types/43'){if(method!=='GET'){const body=request.postDataJSON();const settings={...events[1].settings,...body.settings};Object.assign(events[1],body,{settings});}data={event:{...events[1],settings:{...eventSettings(),...events[1].settings}}};}
   else if(path==='bookings') data={bookings:bookings.filter(b=>u.searchParams.get('status')==='cancelled'?b.status==='cancelled':b.status==='accepted'),nextCursor:null};
   else if(path==='bookings/booking-1/cancel'){bookings[0].status='cancelled';bookings[0].cancellationReason=request.postDataJSON().reason;data={booking:bookings[0]};}
   else if(path==='bookings/booking-1/reschedule'){bookings[0].start=request.postDataJSON().start;data={booking:bookings[0]};}
@@ -37,9 +38,31 @@ try {
  assert.equal(await page.getByRole('button',{name:'Create event',exact:true}).isDisabled(),true);
  await page.getByLabel('Event meeting format',{exact:true}).selectOption('integration:cal-video');
  await page.getByRole('button',{name:'Create event',exact:true}).click();await page.getByRole('heading',{name:'Design review',exact:true}).waitFor();
- assert.equal(writes[1].body.slug,'design-review');assert.equal(writes[1].body.scheduleId,8);assert.equal(writes[1].body.formatId,'integration:cal-video');
+ assert.equal(writes[1].body.settings.minimumBookingNotice,120);assert.equal(writes[1].body.settings.slotInterval,null);assert.equal(writes[1].body.slug,'design-review');assert.equal(writes[1].body.scheduleId,8);assert.equal(writes[1].body.formatId,'integration:cal-video');
  await page.locator('article').filter({has:page.getByRole('heading',{name:'Design review',exact:true})}).getByRole('button',{name:'Edit event'}).click();
- await page.getByLabel('Duration (minutes)').fill('45');await page.getByRole('button',{name:'Save event',exact:true}).click();await page.getByText('45 minutes · Cal.com event').waitFor();
+ await page.getByLabel('Duration (minutes)').fill('45');
+ assert.equal(await page.getByLabel('Minimum notice',{exact:true}).inputValue(),'2');
+ await page.getByLabel('Minimum notice',{exact:true}).fill('0');
+ await page.getByLabel('Before event (minutes)',{exact:true}).fill('15');
+ await page.getByLabel('Time-slot intervals',{exact:true}).selectOption('custom');await page.getByLabel('Slot interval (minutes)').fill('15');
+ await page.getByRole('switch',{name:'Limit booking frequency',exact:true}).check();await page.getByLabel('Bookings per day',{exact:true}).fill('4');
+ await page.getByRole('switch',{name:'Limit total booking duration',exact:true}).check();await page.getByLabel('Minutes per day',{exact:true}).fill('120');
+ await page.getByRole('switch',{name:'Limit future bookings',exact:true}).check();
+ await page.getByRole('switch',{name:'Limit upcoming bookings per person',exact:true}).check();
+ await page.getByLabel('Maximum upcoming bookings').fill('2');
+ await page.locator('.event-settings').screenshot({path:'/tmp/meetingschedule-event-settings-dark.png'});
+ for(const width of [390,768,1024]) {await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'event settings overflow at '+width);if(width===390)await page.locator('.event-settings').screenshot({path:'/tmp/meetingschedule-event-settings-mobile.png'});}
+ await page.locator('.event-settings').screenshot({path:'/tmp/meetingschedule-event-settings-tablet.png'});
+ await page.setViewportSize({width:1440,height:1100});
+ await page.getByRole('button',{name:'Save event',exact:true}).click();await page.getByText('45 minutes · Cal.com event').waitFor();
+ assert.equal(writes[2].body.settings.minimumBookingNotice,0);assert.equal(writes[2].body.settings.bookingLimitsCount.day,4);assert.equal(Object.hasOwn(writes[2].body.settings,'offsetStart'),false);
+ await page.locator('article').filter({has:page.getByRole('heading',{name:'Design review',exact:true})}).getByRole('button',{name:'Edit event'}).click();
+ await page.getByLabel('Minimum notice',{exact:true}).waitFor();assert.equal(await page.getByLabel('Minimum notice',{exact:true}).inputValue(),'0');assert.equal(await page.getByLabel('Bookings per day',{exact:true}).inputValue(),'4');
+ await page.getByRole('switch',{name:'Limit booking frequency',exact:true}).uncheck();
+ await page.getByLabel('Time-slot intervals',{exact:true}).selectOption('default');
+ await page.getByRole('button',{name:'Save event',exact:true}).click();await page.getByText('45 minutes · Cal.com event').waitFor();
+ assert.deepEqual(writes[3].body.settings,{bookingLimitsCount:{disabled:true},slotInterval:null});
+
  await page.getByRole('button',{name:'Bookings',exact:true}).click();await page.getByRole('heading',{name:'Project conversation with Alex'}).waitFor();
  assert.match(await page.locator('.workspace-booking .meeting-timezone').textContent(),/Europe\/Berlin · UTC/);
  await page.getByLabel('Display time zone').selectOption('Asia/Tokyo');assert.match(await page.locator('.workspace-booking .meeting-timezone').textContent(),/UTC\+09:00/);
