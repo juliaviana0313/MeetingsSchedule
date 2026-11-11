@@ -1,7 +1,7 @@
 import { seal, unseal } from './secure-session.mjs';
 import { manage, managementRoute } from './shared-management.mjs';
 import { eventFormats, bookingLocation, providerChoices } from './meeting-formats.mjs';
-import { MEETING_RECIPIENT } from './meeting-recipient.mjs';
+import { MEETING_HOST } from './meeting-host.mjs';
 
 const ROOT = 'https://api.cal.com/v2';
 const COOKIE = '__Host-ms-visitor';
@@ -63,8 +63,8 @@ async function account(env, fetcher) {
   return me;
 }
 function eligible(event) {
-  const extraRequired = (event.bookingFields || []).some(f => f.required && !['name', 'email', 'guests', 'notes', 'title', 'location'].includes(f.slug || f.field));
-  return Number.isSafeInteger(event.id) && event.id > 0 && !event.hidden && !event.disableGuests && !event.bookingRequiresAuthentication && !event.requiresBookerEmailVerification && !event.requiresEmailVerification && !(event.price > 0) && !event.seatsPerTimeSlot && !(event.recurrence && !event.recurrence.disabled) && !extraRequired;
+  const extraRequired = (event.bookingFields || []).some(f => f.required && !['name', 'email', 'notes', 'title', 'location'].includes(f.slug || f.field));
+  return Number.isSafeInteger(event.id) && event.id > 0 && !event.hidden && !event.bookingRequiresAuthentication && !event.requiresBookerEmailVerification && !event.requiresEmailVerification && !(event.price > 0) && !event.seatsPerTimeSlot && !(event.recurrence && !event.recurrence.disabled) && !extraRequired;
 }
 async function eventTypes(env, fetcher) {
   const data = await cal(env, fetcher, '/event-types', '2026-06-12');
@@ -78,17 +78,16 @@ async function selectedType(env, fetcher, id) {
   if (!event) throw new BookingError('This meeting type is not available for public booking.', 400);
   return event;
 }
-function validate(body) {
+function validate(body, hostEmail) {
   if (!body || Array.isArray(body) || typeof body !== 'object') throw new BookingError('Invalid booking details.');
   const eventTypeId = Number(body.eventTypeId), start = new Date(body.start);
   const first = { name: text(body.first?.name, 100), email: email(typeof body.first?.email === 'string' ? body.first.email.trim() : null) };
-  const second = { ...MEETING_RECIPIENT };
   if (!first.name || !first.email) throw new BookingError('Enter your name and a valid email address.');
-  if (first.email === second.email) throw new BookingError('Enter your own email address, different from Travis’s invitation address.');
+  if (first.email === hostEmail.trim().toLowerCase()) throw new BookingError('Enter your own email address, different from the host’s email.');
   if (!Number.isSafeInteger(eventTypeId) || eventTypeId <= 0 || !Number.isFinite(start.getTime()) || start.getTime() <= Date.now() || start.getTime() > Date.now() + 366 * 86400000) throw new BookingError('Choose a valid meeting type and future time within the next year.');
   if (body.agreed !== true) throw new BookingError('Confirm that you agree to receive the meeting invitation.');
   if (typeof body.formatId !== 'string' || !body.formatId || body.formatId.length > 100) throw new BookingError('Choose a meeting format before booking.');
-  return { formatId: body.formatId, formatDetail: text(body.formatDetail, 500), eventTypeId, start: start.toISOString(), timeZone: timezone(body.timeZone), first, second, notes: text(body.notes, 1000) };
+  return { formatId: body.formatId, formatDetail: text(body.formatDetail, 500), eventTypeId, start: start.toISOString(), timeZone: timezone(body.timeZone), first, notes: text(body.notes, 1000) };
 }
 async function visitor(request, env) { return unseal(cookieValue(request) || '', env.CAL_SESSION_SECRET, 'public-booking'); }
 const requestId = value => typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value) ? value : null;
@@ -153,7 +152,7 @@ export async function publicBookingGateway(request, env, fetcher = fetch) {
       }))].sort();
       return json({ slots });
     }
-    const booking = validate(await readJson(request));
+    const booking = validate(await readJson(request), env.CAL_ACCOUNT_EMAIL);
     const id = requestId(request.headers.get('Idempotency-Key'));
     if (!id) throw new BookingError('A booking request ID is required.');
     const key = await hash(session + ':' + id, env), fingerprint = await hash(JSON.stringify(booking), env);
@@ -178,16 +177,16 @@ export async function publicBookingGateway(request, env, fetcher = fetch) {
       const data = await cal(env, fetcher, '/bookings', '2026-02-25', {
         eventTypeId: event.id, start: booking.start,
         attendee: { ...booking.first, timeZone: booking.timeZone, language: 'en' },
-        guests: [booking.second.email],
+        guests: [],
         location: chosen.location,
         bookingFieldsResponses: {
-          ...((event.bookingFields || []).some(f => (f.slug || f.field) === 'title') ? { title: `Meeting between ${booking.first.name} and ${booking.second.name}` } : {}),
-          notes: `Meeting between ${booking.first.name} and ${booking.second.name}.\n${booking.notes}`,
+          ...((event.bookingFields || []).some(f => (f.slug || f.field) === 'title') ? { title: `Meeting between ${booking.first.name} and ${MEETING_HOST.name}` } : {}),
+          notes: `Meeting between ${booking.first.name} and ${MEETING_HOST.name}.\n${booking.notes}`,
         },
         metadata: { source: 'MeetingSchedule public booking', requestId: id, meetingFormat: chosen.format.label, meetingFormatId: chosen.format.id },
       });
       if (typeof data.uid !== 'string' || !Number.isFinite(Date.parse(data.start)) || !Number.isFinite(Date.parse(data.end))) throw new BookingError('The booking response could not be confirmed.', 502);
-      result = { receipt: { reference: data.uid, title: text(data.title || event.title, 160), start: data.start, end: data.end, timeZone: booking.timeZone, status: data.status === 'accepted' ? 'accepted' : 'pending', format: chosen.format.label, location: text(data.location, 500), participants: [booking.first.name, booking.second.name], meetingUrl: (chosen.location.type === 'integration' || chosen.location.type === 'link') ? safeUrl(data.meetingUrl || data.location) : null } };
+      result = { receipt: { reference: data.uid, title: text(data.title || event.title, 160), start: data.start, end: data.end, timeZone: booking.timeZone, status: data.status === 'accepted' ? 'accepted' : 'pending', format: chosen.format.label, location: text(data.location, 500), participants: [booking.first.name, MEETING_HOST.name], meetingUrl: (chosen.location.type === 'integration' || chosen.location.type === 'link') ? safeUrl(data.meetingUrl || data.location) : null } };
     } catch (error) {
       // Timeouts/5xx can follow a successful upstream write. Never automatically resend.
       const uncertain = !(error instanceof BookingError) || error.status >= 500;

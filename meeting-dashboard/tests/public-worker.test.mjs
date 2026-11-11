@@ -16,7 +16,7 @@ const mf = new Miniflare({
           if (url.endsWith('/bookings')) {
             const body = JSON.parse(options.body);
             if (body.location?.integration !== 'cal-video') throw new Error('Missing selected meeting format');
-            if (body.guests?.length !== 1 || body.guests[0] !== 'info@truemarch.fun') throw new Error('Recipient was not fixed to Travis');
+            if (!Array.isArray(body.guests) || body.guests.length !== 0) throw new Error('Additional guests must not be invited');
             if (body.attendee.email === 'redirect@example.com') return new Response(null, { status: 302, headers: { location: 'https://trap.invalid' } });
             return Response.json({ data: { uid: 'worker-booking', title: 'Conversation', start: body.start, end: new Date(Date.parse(body.start) + 1800000).toISOString(), status: 'accepted' } });
           }
@@ -28,7 +28,7 @@ const mf = new Miniflare({
     { type: 'ESModule', path: 'shared-management.mjs', contents: readFileSync(new URL('../lib/shared-management.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'event-settings.mjs', contents: readFileSync(new URL('../lib/event-settings.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'meeting-formats.mjs', contents: readFileSync(new URL('../lib/meeting-formats.mjs', import.meta.url), 'utf8') },
-    { type: 'ESModule', path: 'meeting-recipient.mjs', contents: readFileSync(new URL('../lib/meeting-recipient.mjs', import.meta.url), 'utf8') },
+    { type: 'ESModule', path: 'meeting-host.mjs', contents: readFileSync(new URL('../lib/meeting-host.mjs', import.meta.url), 'utf8') },
     { type: 'ESModule', path: 'secure-session.mjs', contents: readFileSync(new URL('../lib/secure-session.mjs', import.meta.url), 'utf8') },
   ],
 });

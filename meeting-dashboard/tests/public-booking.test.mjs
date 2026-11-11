@@ -68,13 +68,22 @@ test('legacy account endpoints and unsupported operations stay blocked', async (
   }
   assert.equal(f.calls.length, 0);
 });
-test('hidden, restricted, paid, seated, and guest-disabled events cannot be booked', async () => {
+test('hidden, restricted, paid, seated, and extra-required-field events cannot be booked', async () => {
   const f = fixture();
-  for (const setting of [{ hidden: true }, { disableGuests: true }, { price: 10 }, { bookingRequiresAuthentication: true }, { requiresBookerEmailVerification: true }, { seatsPerTimeSlot: 2 }, { recurrence: { disabled: false } }, { bookingFields: [{ slug: 'phone', required: true }] }]) f.events.push({ id: f.events.length + 100, title: 'Restricted', ...setting });
+  for (const setting of [{ hidden: true }, { price: 10 }, { bookingRequiresAuthentication: true }, { requiresBookerEmailVerification: true }, { seatsPerTimeSlot: 2 }, { recurrence: { disabled: false } }, { bookingFields: [{ slug: 'phone', required: true }] }, { bookingFields: [{ slug: 'guests', required: true }] }]) f.events.push({ id: f.events.length + 100, title: 'Restricted', ...setting });
   const { cookie, data } = await f.init(); assert.equal(data.events.length, 1);
   assert.equal((await f.book(cookie, { ...body(), eventTypeId: 101 })).status, 400);
   assert.equal((await f.book(cookie, { ...body(), eventTypeId: 99999 })).status, 400);
   assert.equal(f.calls.some(x => x.url.endsWith('/bookings')), false);
+});
+test('events with additional guests disabled still allow one-to-one bookings', async () => {
+  const f = fixture(); f.events[0].disableGuests = true;
+  const { cookie, data } = await f.init(); assert.equal(data.events.length, 1);
+  assert.equal((await f.book(cookie)).status, 200);
+  const sent = JSON.parse(f.calls.at(-1).options.body);
+  assert.deepEqual(sent.guests, []);
+  assert.equal(sent.attendee.email, 'b@example.com');
+  assert.ok(!JSON.stringify(sent).includes('info@truemarch.fun'));
 });
 test('slots are confined to approved event types, valid dates, and the selected timezone', async () => {
   const f = fixture(), { cookie } = await f.init();
@@ -94,12 +103,12 @@ test('required title fields remain bookable and receive a generated participant 
   assert.equal(sent.bookingFieldsResponses.title, 'Meeting between Person B and Travis Ruiz');
   assert.equal(sent.bookingFieldsResponses.notes, 'Meeting between Person B and Travis Ruiz.\nDiscuss plans');
 });
-test('booking fixes Travis as recipient and ignores client-supplied recipient and bypass fields', async () => {
+test('booking includes only the visitor and host, ignoring extra recipients and bypass fields', async () => {
   const f = fixture(), { cookie } = await f.init();
   const r = await f.book(cookie, { ...body(), second: { name: 'Wrong recipient', email: 'wrong@example.com' }, allowConflicts: true, skipBookingLimits: true, allowBookingOutOfBounds: true, guests: ['attacker@example.com'], attendee: { email: 'attacker@example.com' }, metadata: { secret: 'bad' } });
   assert.equal(r.status, 200); const data = await r.json();
   const sent = JSON.parse(f.calls.at(-1).options.body);
-  assert.equal(sent.attendee.email, 'b@example.com'); assert.deepEqual(sent.guests, ['info@truemarch.fun']); assert.equal(sent.eventTypeId, 42);
+  assert.equal(sent.attendee.email, 'b@example.com'); assert.deepEqual(sent.guests, []); assert.equal(sent.eventTypeId, 42);
   assert.equal(sent.allowConflicts, undefined); assert.equal(sent.skipBookingLimits, undefined); assert.equal(sent.allowBookingOutOfBounds, undefined);
   assert.deepEqual(data.receipt.participants, ['Person B', 'Travis Ruiz']); assert.ok(!JSON.stringify(data).includes('PRIVATE')); assert.ok(!JSON.stringify(data).includes(f.env.CAL_API_KEY));
 });
@@ -126,7 +135,7 @@ test('receipts are scoped to the requesting browser, not a public meeting list',
 });
 test('validation, consent, missing visitor, cross-origin, and oversized bodies fail before writing', async () => {
   const f = fixture(), { cookie } = await f.init();
-  for (const payload of [null, [], { ...body(), agreed: false }, { ...body(), first: { name: 'Travis', email: 'INFO@TRUEMARCH.FUN' } }, { ...body(), first: { name: 'B', email: 'bad' } }]) assert.equal((await f.book(cookie, payload)).status, 400);
+  for (const payload of [null, [], { ...body(), agreed: false }, { ...body(), first: { name: 'Travis', email: 'HELLO@TRUEMARCH.FUN' } }, { ...body(), first: { name: 'B', email: 'bad' } }]) assert.equal((await f.book(cookie, payload)).status, 400);
   assert.equal((await f.book('')).status, 401);
   assert.equal((await f.call('/api/public/bookings', body(), cookie, { origin: 'https://evil.test' })).status, 403);
   assert.equal((await f.book(cookie, { ...body(), notes: 'x'.repeat(9000) })).status, 413);
@@ -199,13 +208,13 @@ test('management protects origins, bounded input, rate limits, and uncertain wri
   assert.equal((await write(other, init.cookie, 'schedules', schedulePayload)).status, 429);
 });
 
-test('Gmail visitors can book with Travis without sharing the fixed recipient rate limit', async () => {
+test('Gmail visitors can book with Travis without sharing the host’s rate limit', async () => {
   const f = fixture(), { cookie } = await f.init();
   for (let i = 0; i < 6; i++) {
     const r = await f.call('/api/public/bookings', { ...body(), first: { name: 'Visitor ' + i, email: 'visitor' + i + '@gmail.com' } }, cookie, { 'cf-connecting-ip': '192.0.2.' + (i + 10), 'Idempotency-Key': crypto.randomUUID() });
     assert.equal(r.status, 200);
     const sent = JSON.parse(f.calls.at(-1).options.body);
-    assert.deepEqual(sent.guests, ['info@truemarch.fun']);
+    assert.deepEqual(sent.guests, []);
   }
 });
 

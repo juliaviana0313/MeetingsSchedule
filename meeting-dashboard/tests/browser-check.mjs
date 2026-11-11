@@ -66,9 +66,11 @@ try {
   await page.getByLabel('Meeting format', { exact: true }).selectOption('integration:cal-video');
   await page.getByRole('button', { name: 'Find available times' }).click(); await page.locator('.slots button').first().click();
   await page.getByLabel('Your name').fill('Alex B'); await page.getByLabel('Your email').fill('alex@gmail.com');
-  await page.getByLabel('Your email').fill('info@truemarch.fun');
+  assert.match(await page.locator('.sidebar-contact').textContent(), /hello@truemarch.fun/);
+  assert.ok(!(await page.locator('.sidebar-contact').textContent()).includes('info@truemarch.fun'));
+  await page.getByLabel('Your email').fill('hello@truemarch.fun');
   await page.getByRole('checkbox').check(); await page.getByRole('button', { name: 'Confirm booking' }).click();
-  await page.getByText('Enter your own email address, different from Travis’s invitation address.').waitFor(); assert.equal(writes.length, 1);
+  await page.getByText('Enter your own email address, different from the host’s email.').waitFor(); assert.equal(writes.length, 1);
   await page.getByLabel('Your email').fill('alex@gmail.com'); uncertain = true;
   await page.getByRole('button', { name: 'Confirm booking' }).click();
   await page.getByRole('button', { name: 'Check booking status' }).waitFor();

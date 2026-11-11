@@ -4,7 +4,7 @@ import { CalendarDays, Clock3, Users, ArrowRight, CheckCircle2, RefreshCw, Globe
 import ThemeToggle from './theme-toggle';
 import WorkspaceManagement from './workspace-management';
 import { meetingTime } from '../lib/meeting-time.mjs';
-import { MEETING_RECIPIENT } from '../lib/meeting-recipient.mjs';
+import { MEETING_HOST } from '../lib/meeting-host.mjs';
 
 type EventType = { id: number; title: string; duration: number; description: string; formats: { id: string; label: string; input: string | null }[] };
 type Receipt = { format?: string; location?: string; reference: string; title: string; start: string; end: string; timeZone: string; status: string; participants: string[]; meetingUrl: string | null };
@@ -70,7 +70,7 @@ export default function BookingPage() {
   }
   async function book(e: React.FormEvent) {
     e.preventDefault(); if (submitting.current || uncertain || !slot || !event || !format) return;
-    if (firstEmail.trim().toLowerCase() === MEETING_RECIPIENT.email) { setError('Enter your own email address, different from Travis’s invitation address.'); return; }
+    if (firstEmail.trim().toLowerCase() === organizer.trim().toLowerCase()) { setError('Enter your own email address, different from the host’s email.'); return; }
     submitting.current = true; setBusy(true); setError('');
     const id = crypto.randomUUID(); attempt.current = id; pending(id);
     try {
@@ -94,11 +94,11 @@ export default function BookingPage() {
       <aside className="workspace-sidebar" aria-label="Workspace navigation">
         <div className="workspace-sidebar-inner"><p className="eyebrow sidebar-caption">WORKSPACE</p>
           <nav className="workspace-nav" aria-label="Dashboard sections">{([['book', 'Book a meeting', CalendarDays], ['events', 'Events', LayoutGrid], ['availability', 'Availability', Clock3], ['bookings', 'Bookings', ListChecks]] as const).map(([value, label, Icon]) => <button key={value} title={label} aria-label={label} aria-pressed={tab === value} disabled={!ready} onClick={() => setTab(value)}><Icon size={21} aria-hidden="true" /><span>{label}</span></button>)}</nav>
-          <div className="sidebar-contact"><span className="recipient-avatar" aria-hidden="true">TR</span><strong>{MEETING_RECIPIENT.name}</strong><span>{MEETING_RECIPIENT.email}</span><small>Your meeting recipient</small></div>
+          <div className="sidebar-contact"><span className="recipient-avatar" aria-hidden="true">TR</span><strong>{MEETING_HOST.name}</strong><span>{organizer}</span><small>Your meeting host</small></div>
         </div>
       </aside>
       <main className="public-main">
-      <div className="public-intro"><p className="eyebrow">OPEN TO EVERYONE</p><h1>{tab === 'book' ? 'Meet with Travis Ruiz.' : 'A place for every conversation.'}</h1><p>{tab === 'book' ? 'Choose a time and enter your name and email. Travis is already included—no sign-up needed.' : 'Create events, set available hours, and manage meetings with Travis.'}</p></div>
+      <div className="public-intro"><p className="eyebrow">OPEN TO EVERYONE</p><h1>{tab === 'book' ? 'Meet with Travis Ruiz.' : 'A place for every conversation.'}</h1><p>{tab === 'book' ? 'Choose a time and enter your name and email. Travis is your host. No sign-up needed.' : 'Create events, set available hours, and manage meetings with Travis.'}</p></div>
       {ready && <p className="shared-context">Shared scheduling for {organizer}. Public event reservations and cancellations are visible to dashboard visitors.</p>}
       {ready && tab !== 'book' && <WorkspaceManagement mode={tab} events={events} zone={zone} zones={zones} onZone={setZone} onUpdate={refreshConfig} onBook={id => { setEventId(String(id)); reset(); setTab('book'); }} />}
       <div hidden={tab !== 'book'}>
@@ -152,7 +152,7 @@ export default function BookingPage() {
             <div><dt>Duration</dt><dd>{event ? `${event.duration} minutes` : 'Choose a meeting type'}</dd></div>
             <div className="summary-when"><dt>Date & time</dt><dd>{slot ? <><time dateTime={slot}>{new Intl.DateTimeFormat('en', { timeZone: zone, dateStyle: 'full' }).format(new Date(slot))}</time><span className="meeting-clock">{meetingTime(slot, new Date(Date.parse(slot) + (event?.duration || 30) * 60000).toISOString(), zone).startLabel} – {meetingTime(slot, new Date(Date.parse(slot) + (event?.duration || 30) * 60000).toISOString(), zone).endLabel}</span><span className="meeting-timezone"><Globe2 size={15} aria-hidden="true" />{meetingTime(slot, new Date(Date.parse(slot) + (event?.duration || 30) * 60000).toISOString(), zone).zoneLabel}</span></> : <span className="muted">Select an available time</span>}</dd></div>
           </dl>
-          <div className="public-participants"><div><span>Your name</span><p>{firstName.trim() || 'You'}</p></div><div><span>Meeting with</span><p>{MEETING_RECIPIENT.name}</p><small>{MEETING_RECIPIENT.email}</small></div></div>
+          <div className="public-participants"><div><span>Your name</span><p>{firstName.trim() || 'You'}</p></div><div><span>Meeting with</span><p>{MEETING_HOST.name}</p><small>{organizer}</small></div></div>
           <label className="public-consent"><input type="checkbox" required checked={agreed} disabled={disabled} onChange={e => setAgreed(e.target.checked)} /><span>I agree to receive the invitation for my meeting with Travis Ruiz.</span></label>
           <button className="button primary" type="submit" disabled={disabled || !slot || !agreed || !format || (!!format?.input && !formatDetail.trim())}>{busy ? 'Booking…' : 'Confirm booking'}<ArrowRight size={18} /></button>
           <p className="public-hint"><ShieldCheck size={18} /> No account needed. Manage reservations in the Bookings tab.</p>

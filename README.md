@@ -1,6 +1,6 @@
 # MeetingSchedule workspace
 
-The application in `meeting-dashboard/` is a shared public scheduling dashboard. Visitors book meetings with Travis Ruiz (`info@truemarch.fun`) by entering only their own name and email without registering or connecting a Cal.com account. The backend uses the Cal.com API key for `hello@truemarch.fun`, supplied through server environment settings.
+The application in `meeting-dashboard/` is a shared public scheduling dashboard. Visitors book meetings with Travis Ruiz (`hello@truemarch.fun`) by entering only their own name and email without registering or connecting a Cal.com account. The backend uses the Cal.com API key for `hello@truemarch.fun`, supplied through server environment settings.
 
 **Website:** https://meetingschedule-hub-nov26.dragonwarrior9873.chatgpt.site
 

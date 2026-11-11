@@ -83,7 +83,7 @@ export async function manage(request, env, fetcher, session, c) {
       payload.hidden = false;
       payload.bookingRequiresAuthentication = false;
       payload.requiresBookerEmailVerification = false;
-      payload.bookingFields = [{ field: 'guests', slug: 'guests', required: false, hidden: false }];
+      payload.bookingFields = [{ field: 'guests', slug: 'guests', required: false, hidden: true }];
     }
     version = '2026-06-12'; view = e => ({ event: publicType(e) });
   } else {
