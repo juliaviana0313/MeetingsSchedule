@@ -280,3 +280,20 @@ test('invalid scheduling settings are rejected before a Cal.com write', async ()
   assert.equal((await write(f,cookie,'event-types/42',{...eventPayload,settings},crypto.randomUUID(),'PATCH')).status,200);
   assert.deepEqual(JSON.parse(f.calls.at(-1).options.body).bookingWindow,settings.bookingWindow);
 });
+
+test('booking list exposes only valid meeting URLs and keeps hidden-event links private', async () => {
+  const f=fixture(),{cookie}=await f.init();
+  const cases=[
+    [{location:'https://meet.google.com/abc-defg-hij',meetingUrl:'https://old.example.com/room'},'https://meet.google.com/abc-defg-hij'],
+    [{location:'integrations:daily',meetingUrl:'https://cal.video/room'},'https://cal.video/room'],
+    [{location:'https://us02web.zoom.us/j/123?pwd=test',meetingUrl:null},'https://us02web.zoom.us/j/123?pwd=test'],
+    [{location:'https://teams.microsoft.com/l/meetup-join/test',meetingUrl:null},'https://teams.microsoft.com/l/meetup-join/test'],
+    [{location:'https://meeting.example.com/custom',meetingUrl:null},'https://meeting.example.com/custom'],
+    [{location:'123 Main Street',meetingUrl:null},null],
+    [{location:'javascript:alert(1)',meetingUrl:'data:text/html,bad'},null],
+    [{location:'https://user:password@example.com/room',meetingUrl:'http://example.com/room'},null],
+  ];
+  for(const [fields,expected] of cases){Object.assign(f.bookings[0],fields);const r=await f.call('/api/public/bookings',undefined,cookie);assert.equal(r.status,200);assert.equal((await r.json()).bookings[0].meetingUrl,expected);}
+  f.bookings.push({...f.bookings[0],uid:'hidden',eventTypeId:999,location:'https://private.example.com/room'});
+  assert.ok(!(await (await f.call('/api/public/bookings',undefined,cookie)).text()).includes('private.example.com'));
+});

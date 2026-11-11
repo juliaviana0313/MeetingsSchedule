@@ -60,3 +60,15 @@ export function recordedFormat(booking) {
     return 'Other video / meeting link';
   } catch { return 'Not recorded'; }
 }
+
+// Current APIs return the join URL in location; older responses may use meetingUrl.
+export function bookingMeetingUrl(booking) {
+  for (const value of [booking.location, booking.meetingUrl]) {
+    if (typeof value !== 'string' || value.length > 4096 || /[\u0000-\u001f\u007f]/.test(value)) continue;
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol === 'https:' && !url.username && !url.password) return url.href;
+    } catch { /* A phone number, address, or provider identifier is not a link. */ }
+  }
+  return null;
+}

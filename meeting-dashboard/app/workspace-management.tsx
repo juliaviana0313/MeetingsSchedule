@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Clock3, Globe2, Plus, RefreshCw, X } from 'lucide-react';
+import { CalendarDays, Clock3, ExternalLink, Globe2, Plus, RefreshCw, X } from 'lucide-react';
 import EventSettingsFields, { type EventSettings } from './event-settings-fields';
 import { eventSettings } from '../lib/event-settings.mjs';
 import { meetingTime } from '../lib/meeting-time.mjs';
 export type EventType = { id: number; title: string; duration: number; description: string; scheduleId?: number | null; formats?: { id: string; label: string; input: string | null }[] };
 type Schedule = { id: number; name: string; timeZone: string; isDefault: boolean; availability: { days: string[]; startTime: string; endTime: string }[]; overrides: { date: string; startTime: string; endTime: string }[] };
-type Booking = { format?: string; reference: string; title: string; start: string; end: string; status: string; eventTypeId: number; participants: string[]; cancellationReason: string; rescheduledTo: boolean };
+type Booking = { meetingUrl?: string | null; format?: string; reference: string; title: string; start: string; end: string; status: string; eventTypeId: number; participants: string[]; cancellationReason: string; rescheduledTo: boolean };
 type Mode = 'events' | 'availability' | 'bookings';
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const pendingKey = 'meetingschedule-pending-management';
@@ -103,7 +103,7 @@ export default function WorkspaceManagement({ mode, events, zone, zones, onZone,
         <header className="reservation-header"><h3>{b.title}</h3><span className={'badge ' + (b.status === 'cancelled' ? 'cancelled' : b.status === 'pending' ? 'pending' : 'confirmed')}>{b.rescheduledTo ? 'Rescheduled' : b.status === 'accepted' ? 'Confirmed' : b.status}</span></header>
         <dl className="reservation-details">
           <div className="reservation-when"><dt>Date & time</dt><dd><time dateTime={b.start}>{new Intl.DateTimeFormat('en', { timeZone: zone, dateStyle: 'full' }).format(new Date(b.start))}</time><span className="meeting-clock">{timing.startLabel} – {timing.endLabel}</span><span className="meeting-timezone"><Globe2 size={15} aria-hidden="true" />{timing.zoneLabel}</span></dd></div>
-          <div><dt>Meeting format</dt><dd className="booking-format">{b.format || 'Not recorded'}</dd></div>
+          <div><dt>Meeting format</dt><dd className="booking-format">{b.format || 'Not recorded'}<div className="booking-link">{b.meetingUrl ? <><a href={b.meetingUrl} target="_blank" rel="noopener noreferrer" aria-label={'Open meeting for ' + b.title}>Open meeting <ExternalLink size={16} aria-hidden="true" /></a><span className="booking-link-url">{b.meetingUrl}</span></> : <span className="muted">Link not available</span>}</div></dd></div>
           <div><dt>Participants</dt><dd><ul className="reservation-people">{b.participants.length ? b.participants.map((name, i) => <li key={i}>{name}</li>) : <li>Not provided</li>}</ul></dd></div>
         </dl>
         {b.cancellationReason && <div className="cancellation-reason"><strong>Cancellation reason:</strong> {b.cancellationReason}</div>}

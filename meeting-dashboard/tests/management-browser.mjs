@@ -8,7 +8,7 @@ try {
  const day=new Date(Date.now()+4*86400000); day.setUTCHours(12,0,0,0); const start=day.toISOString(),end=new Date(+day+1800000).toISOString();
  const events=[{id:42,title:'Project conversation',duration:30,description:'Time to exchange ideas.',scheduleId:7,formats:[{id:'integration:cal-video',label:'Cal Video',input:null}]}];
  const schedules=[{id:7,name:'Working hours',timeZone:'Europe/Berlin',isDefault:true,availability:[{days:['Monday','Tuesday','Wednesday','Thursday','Friday'],startTime:'09:00',endTime:'17:00'}],overrides:[]}];
- let bookings=[{reference:'booking-1',title:'Project conversation with Alex',start,end,status:'accepted',eventTypeId:42,participants:['Alex','Travis Ruiz'],cancellationReason:''}], uncertain=false, checked=false;
+ let bookings=[{reference:'booking-1',meetingUrl:'https://meet.google.com/test-meeting-link',format:'Google Meet',title:'Project conversation with Alex',start,end,status:'accepted',eventTypeId:42,participants:['Alex','Travis Ruiz'],cancellationReason:''}], uncertain=false, checked=false;
  await page.route('**/api/**',async route=>{
   const request=route.request(),u=new URL(request.url()),path=u.pathname.replace('/api/public/',''),method=request.method();let status=200,data;
   if(method!=='GET') writes.push({path,method,body:request.postDataJSON(),id:request.headers()['idempotency-key']});
@@ -64,6 +64,7 @@ try {
  assert.deepEqual(writes[3].body.settings,{bookingLimitsCount:{disabled:true},slotInterval:null});
 
  await page.getByRole('button',{name:'Bookings',exact:true}).click();await page.getByRole('heading',{name:'Project conversation with Alex'}).waitFor();
+ const meetingLink=page.getByRole('link',{name:'Open meeting for Project conversation with Alex',exact:true});assert.equal(await meetingLink.getAttribute('href'),'https://meet.google.com/test-meeting-link');assert.equal(await meetingLink.getAttribute('target'),'_blank');assert.match(await meetingLink.getAttribute('rel'),/noopener/);
  assert.match(await page.locator('.workspace-booking .meeting-timezone').textContent(),/Europe\/Berlin · UTC/);
  await page.getByLabel('Display time zone').selectOption('Asia/Tokyo');assert.match(await page.locator('.workspace-booking .meeting-timezone').textContent(),/UTC\+09:00/);
  await page.getByRole('button',{name:'Reschedule',exact:true}).click();await page.getByLabel('New date').fill(start.slice(0,10));await page.getByRole('button',{name:'Find new times'}).click();await page.locator('.workspace-editor .slots button').first().click();

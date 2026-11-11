@@ -1,5 +1,5 @@
 import { eventSettings, validateEventSettings } from './event-settings.mjs';
-import { providerChoices, eventLocation, recordedFormat } from './meeting-formats.mjs';
+import { providerChoices, eventLocation, recordedFormat, bookingMeetingUrl } from './meeting-formats.mjs';
 // Narrow, server-authenticated operations for the shared scheduling workspace.
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 export function managementRoute(route) {
@@ -19,7 +19,7 @@ export async function manage(request, env, fetcher, session, c) {
     return data;
   };
   const bookingView = b => ({ reference: b.uid, title: text(b.title, 160), start: b.start, end: b.end, status: b.status, eventTypeId: b.eventTypeId || b.eventType?.id,
-    format: recordedFormat(b), participants: (b.attendees || []).map(a => text(a.name, 100)).filter(Boolean), cancellationReason: text(b.cancellationReason, 500), rescheduledTo: !!b.rescheduledToUid });
+    format: recordedFormat(b), meetingUrl: bookingMeetingUrl(b), participants: (b.attendees || []).map(a => text(a.name, 100)).filter(Boolean), cancellationReason: text(b.cancellationReason, 500), rescheduledTo: !!b.rescheduledToUid });
   await account(env, fetcher);
   if (request.method === 'GET') {
     if (/^\/event-types\/\d+$/.test(path)) {
